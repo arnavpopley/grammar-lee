@@ -1,0 +1,4 @@
+node_modules/
+scratch/
+*.zip
+.DS_Store

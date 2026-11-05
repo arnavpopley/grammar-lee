@@ -1,0 +1,18 @@
+/* Underlines for contenteditable fields, drawn with the CSS Custom Highlight API (no DOM changes). */
+::highlight(grammar-lee-correctness) {
+  text-decoration-line: underline;
+  text-decoration-color: #e5484d;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+  text-decoration-skip-ink: none;
+}
+::highlight(grammar-lee-clarity) {
+  text-decoration-line: underline;
+  text-decoration-color: #3e7bfa;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+  text-decoration-skip-ink: none;
+}
+::highlight(grammar-lee-active) {
+  background-color: rgba(229, 72, 77, 0.16);
+}

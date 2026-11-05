@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8" />
+  <title>grammar-lee editor</title>
+  <link rel="stylesheet" href="common.css" />
+  <link rel="stylesheet" href="content.css" />
+  <style>
+    html, body { height: 100%; }
+    body { display: grid; grid-template-columns: 1fr 360px; background: #fff; }
+    .docwrap { overflow: auto; height: 100vh; }
+    .bar { position: sticky; top: 0; background: rgba(255,255,255,.92); backdrop-filter: blur(6px); display: flex; align-items: center; gap: 10px; padding: 12px 28px; border-bottom: 1px solid #f0f0f3; z-index: 2; }
+    .bar .stats { margin-left: auto; color: var(--muted); font-size: 13px; }
+    #doc { max-width: 760px; margin: 0 auto; padding: 40px 28px 30vh; min-height: 80vh; outline: none;
+      font: 17px/1.75 Georgia, "Iowan Old Style", "Times New Roman", serif; white-space: pre-wrap; word-wrap: break-word; }
+    #doc:empty::before { content: attr(data-placeholder); color: #b4b6bd; }
+    aside { border-left: 1px solid var(--line); background: var(--soft); height: 100vh; display: flex; flex-direction: column; }
+    .sumry { padding: 18px 18px 12px; border-bottom: 1px solid var(--line); background: #fff; }
+    .score { display: flex; gap: 10px; margin-top: 10px; }
+    .score div { flex: 1; border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; }
+    .score b { display: block; font-size: 20px; }
+    .score .c b { color: var(--red); } .score .k b { color: var(--blue); }
+    .score span { font-size: 12px; color: var(--muted); }
+    .tools { display: flex; gap: 8px; margin-top: 12px; }
+    .list { overflow: auto; padding: 10px; flex: 1; }
+    .it { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; cursor: pointer; transition: border-color .12s, box-shadow .12s; }
+    .it:hover { border-color: #c9ccd2; box-shadow: 0 2px 8px rgba(0,0,0,.05); }
+    .it .lbl { display: flex; align-items: center; gap: 6px; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--faint); font-weight: 600; }
+    .it .dot { width: 7px; height: 7px; border-radius: 50%; }
+    .it .dot.correctness { background: var(--red); } .it .dot.clarity { background: var(--blue); }
+    .it .chg { margin: 4px 0; font-size: 15px; }
+    .it .chg s { color: var(--faint); }
+    .it .chg b { color: var(--green); }
+    .it .msg { color: var(--muted); font-size: 12.5px; }
+    .it .msg code { background: var(--soft); border-radius: 4px; padding: 0 4px; }
+    .it .acts { display: flex; gap: 6px; margin-top: 8px; }
+    .it .acts button { border: 0; border-radius: 6px; padding: 4px 9px; font-size: 12.5px; }
+    .it .acts .ok { background: var(--green); color: #fff; font-weight: 600; }
+    .it .acts .no { background: var(--soft); color: var(--muted); }
+    .none { text-align: center; color: var(--muted); padding: 40px 10px; }
+    .none b { display: block; font-size: 28px; color: var(--green); }
+  </style>
+</head>
+<body>
+  <div class="docwrap">
+    <div class="bar">
+      <div class="logo"><img src="icons/32.png" alt="" />grammar-lee</div>
+      <button class="btn" id="copy">Copy text</button>
+      <button class="btn" id="clear">Clear</button>
+      <div class="stats" id="stats"></div>
+    </div>
+    <div id="doc" contenteditable="plaintext-only" data-placeholder="Paste or start typing. Everything is checked on this computer."></div>
+  </div>
+  <aside>
+    <div class="sumry">
+      <div class="label">Suggestions</div>
+      <div class="score">
+        <div class="c"><b id="nC">0</b><span>Correctness</span></div>
+        <div class="k"><b id="nK">0</b><span>Clarity</span></div>
+      </div>
+      <div class="tools">
+        <button class="btn primary" id="fixAll">Fix all correctness</button>
+        <button class="btn" id="settings">Settings</button>
+      </div>
+    </div>
+    <div class="list" id="list"></div>
+  </aside>
+  <script src="editor.js"></script>
+</body>
+</html>

@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8" />
+  <title>grammar-lee settings</title>
+  <link rel="stylesheet" href="common.css" />
+  <style>
+    body { background: var(--soft); }
+    main { max-width: 720px; margin: 0 auto; padding: 32px 20px 60px; }
+    .top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+    section { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; margin-bottom: 16px; }
+    section h2 { font-size: 15px; margin-bottom: 4px; }
+    section > .hint { margin-bottom: 10px; }
+    .welcome { background: var(--green-soft); border-color: #cfe8d8; display: none; }
+    .welcome.show { display: block; }
+    .welcome p { margin: 6px 0 0; }
+    #words { min-height: 220px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .chip { display: inline-flex; align-items: center; gap: 6px; background: var(--soft); border: 1px solid var(--line); border-radius: 99px; padding: 3px 4px 3px 10px; font-size: 12px; }
+    .chip button { border: 0; background: none; color: var(--faint); padding: 0 4px; }
+    .chip button:hover { color: var(--red); }
+    .inline { display: flex; gap: 8px; align-items: center; }
+    .saved { color: var(--green); font-size: 12px; opacity: 0; transition: opacity .2s; }
+    .saved.on { opacity: 1; }
+    code { background: var(--soft); border-radius: 4px; padding: 1px 5px; font-size: 12px; }
+    #ltUrl { width: 240px; }
+    .empty { color: var(--faint); font-size: 13px; }
+  </style>
+</head>
+<body>
+<main>
+  <div class="top">
+    <div class="logo"><img src="icons/48.png" alt="" />grammar-lee settings</div>
+    <button class="btn primary" id="openEditor">Open editor</button>
+  </div>
+
+  <section class="welcome" id="welcome">
+    <h2>grammar-lee is on</h2>
+    <p>Click into any text box and mistakes get underlined. Red is correctness, blue is clarity. Hover an underline to fix it, or click the round badge in the corner of the box to see every suggestion.</p>
+    <p>All checking happens on this computer. Turn on LanguageTool below if you want a second, deeper grammar engine.</p>
+  </section>
+
+  <section>
+    <h2>General</h2>
+    <div class="row"><div class="label">grammar-lee on</div><label class="switch"><input id="enabled" type="checkbox" /><span></span></label></div>
+    <div class="row">
+      <div class="label">English variety</div>
+      <select id="dialect"><option>British</option><option>American</option><option>Australian</option><option>Canadian</option><option>Indian</option></select>
+    </div>
+    <div class="row">
+      <div><div class="label">Clarity suggestions</div><div class="hint">Style, readability, redundancy and Oxford comma (blue underlines)</div></div>
+      <label class="switch"><input id="clarity" type="checkbox" /><span></span></label>
+    </div>
+    <div class="row">
+      <div><div class="label">Autocorrect as you type</div><div class="hint">Fixes a typo the moment you finish the word, only when grammar-lee is confident. A toast lets you undo; undone words are never autocorrected again.</div></div>
+      <label class="switch"><input id="autocorrect" type="checkbox" /><span></span></label>
+    </div>
+    <div class="row">
+      <div><div class="label">Check delay</div><div class="hint">How long after you stop typing before checking</div></div>
+      <select id="delay"><option value="250">Fast (0.25s)</option><option value="450">Normal (0.45s)</option><option value="900">Relaxed (0.9s)</option></select>
+    </div>
+  </section>
+
+  <section>
+    <h2>LanguageTool (optional, local)</h2>
+    <div class="hint">Runs a LanguageTool server on your own machine for extra grammar rules on top of Harper. Install it with <code>./setup-languagetool.sh</code> from the grammar-lee folder. Only <code>localhost</code> addresses are accepted, so your text never goes to the cloud.</div>
+    <div class="row"><div class="label">Use LanguageTool</div><label class="switch"><input id="ltOn" type="checkbox" /><span></span></label></div>
+    <div class="row">
+      <div class="label">Server address</div>
+      <div class="inline"><input id="ltUrl" type="text" /><button class="btn" id="ltTest">Test</button><span class="pill" id="ltPill"><i></i><span>Not tested</span></span></div>
+    </div>
+    <div class="row">
+      <div><div class="label">Picky mode</div><div class="hint">Adds LanguageTool's stricter style rules</div></div>
+      <label class="switch"><input id="ltPicky" type="checkbox" /><span></span></label>
+    </div>
+  </section>
+
+  <section>
+    <h2>Personal dictionary</h2>
+    <div class="hint">One word per line. These are never flagged as spelling mistakes. Pre-loaded with your names, projects, societies and technical terms.</div>
+    <textarea id="words" spellcheck="false" data-grammar-lee="off"></textarea>
+    <div class="inline" style="margin-top:8px"><button class="btn primary" id="saveWords">Save dictionary</button><span class="saved" id="savedWords">Saved</span><span class="hint" id="wordCount"></span></div>
+  </section>
+
+  <section>
+    <h2>Learned corrections</h2>
+    <div class="hint">Fixes you accepted. These are ranked first and can be autocorrected. Click × to forget one.</div>
+    <div class="chips" id="learned"></div>
+  </section>
+
+  <section>
+    <h2>Never autocorrect</h2>
+    <div class="hint">Words you undid an autocorrect on. They are still underlined, just never changed automatically.</div>
+    <div class="chips" id="noAuto"></div>
+  </section>
+
+  <section>
+    <h2>Rules turned off</h2>
+    <div class="hint">Rules you switched off from a suggestion card. Click × to turn one back on.</div>
+    <div class="chips" id="rules"></div>
+  </section>
+
+  <section>
+    <h2>Ignored suggestions</h2>
+    <div class="hint">Specific issues you dismissed with “Ignore”.</div>
+    <div class="chips" id="ignored"></div>
+    <div style="margin-top:10px"><button class="btn" id="clearIgnored">Clear all</button></div>
+  </section>
+
+  <section>
+    <h2>Sites turned off</h2>
+    <div class="chips" id="sites"></div>
+  </section>
+</main>
+<script src="options.js"></script>
+</body>
+</html>
