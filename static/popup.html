@@ -9,6 +9,10 @@
     .site { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 170px; }
     footer { display: flex; gap: 8px; margin-top: 10px; }
     footer .btn { flex: 1; }
+    .ver { margin-top: 8px; font-size: 11px; color: var(--faint); text-align: center; }
+    .dup { display: none; margin: 8px 0 4px; padding: 8px 10px; border-radius: 8px; background: #fff8e6; border: 1px solid #f3d27a; font-size: 12px; }
+    .dup.show { display: block; }
+    .dup button { border: 0; background: none; padding: 0; margin-left: 4px; color: var(--muted); text-decoration: underline; font-size: 12px; }
   </style>
 </head>
 <body>
@@ -16,6 +20,7 @@
     <div class="logo"><img src="icons/32.png" alt="" />grammar-lee</div>
     <label class="switch" title="Turn grammar-lee on or off everywhere"><input id="enabled" type="checkbox" /><span></span></label>
   </header>
+  <div class="dup" id="dup"><b>Two spell-checkers are running.</b> <span id="dupKind"></span> is also loaded. Remove it at <b>chrome://extensions</b>.<button id="dupOk">Dismiss</button></div>
   <div class="row">
     <div><div class="label">Check this site</div><div class="site" id="site"></div></div>
     <label class="switch"><input id="siteOn" type="checkbox" /><span></span></label>
@@ -42,6 +47,7 @@
     <button class="btn primary" id="editor">Open editor</button>
     <button class="btn" id="settings">Settings</button>
   </footer>
+  <div class="ver" id="ver"></div>
   <script src="popup.js"></script>
 </body>
 </html>

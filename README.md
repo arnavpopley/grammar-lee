@@ -9,12 +9,28 @@ British English by default, with a personal dictionary pre-loaded with your name
 
 ## Install (2 minutes)
 
-1. Unzip this folder somewhere permanent, e.g. `~/grammar-lee` (Chrome loads it from there, so don't delete it).
-2. Open `chrome://extensions`, switch on **Developer mode** (top right).
-3. Click **Load unpacked** and pick the `dist` folder.
+```bash
+cd ~ && git clone https://github.com/arnavpopley/grammar-lee.git
+```
+
+1. Open `chrome://extensions` and switch on **Developer mode** (top right).
+2. **Remove any older grammar-lee or Proofline** card first. Two copies underline the same words with different suggestions.
+3. Click **Load unpacked** and pick `~/grammar-lee/dist`.
 4. Pin grammar-lee from the puzzle-piece menu.
 
 Works in Chrome, Arc, Brave, Edge and any Chromium browser (version 116+).
+
+## Updating
+
+```bash
+cd ~/grammar-lee && git pull
+```
+
+Then click the reload arrow on the grammar-lee card in `chrome://extensions` and refresh open tabs. The toolbar popup shows the version and build time at the bottom, so you can confirm the new build is the one running.
+
+grammar-lee always has the extension ID `kbdjkpglljjppinjnnloomfgabnmjmaj`, wherever the folder lives. If it spots another copy (an old Proofline or an older grammar-lee) running on the same page, it shows a warning on the page and in the popup.
+
+Your dictionary and learned corrections survive reloads and `git pull`. **Removing** the extension deletes them, so use Settings → **Back up settings** → Export first.
 
 ## Using it
 
@@ -29,16 +45,16 @@ Works in Chrome, Arc, Brave, Edge and any Chromium browser (version 116+).
 
 ## Deeper checks with LanguageTool (recommended)
 
-Harper is fast and catches the common mistakes. LanguageTool adds thousands more grammar rules, for example subject–verb agreement across long clauses, *its/it's* in context and *your/you're*.
+Harper is fast and catches the common mistakes. LanguageTool adds thousands more grammar rules, for example *its/it's* and *your/you're* in context, which Harper alone misses (see `eval/RESULTS.md`).
 
 ```bash
 cd ~/grammar-lee
-./setup-languagetool.sh            # installs Java if needed, LanguageTool, and a login item
-./setup-languagetool.sh --ngrams   # optional: +8 GB of n-gram data for confused words
+./setup-languagetool.sh              # Homebrew install + login service on localhost:8081
+./setup-languagetool.sh --status
 ./setup-languagetool.sh --uninstall
 ```
 
-Then open grammar-lee settings → **Use LanguageTool** → **Test**. It runs at login and binds to localhost only. It uses about 1 GB of RAM.
+grammar-lee notices the server and switches LanguageTool on by itself. The popup then shows **LanguageTool: Connected**. It uses Homebrew's `languagetool` package (which brings its own Java), listens on localhost only, and uses about 1 GB of RAM.
 
 ## What it doesn't do
 
@@ -56,7 +72,9 @@ src/engine/               Harper wrapper, LanguageTool client, category mapping,
 src/content/              field detection, underlines, suggestion card, badge, applying fixes
 src/engine/spell.js       spelling ranker (error model, frequency model, confidence)
 src/content/autocorrect.js  autocorrect as you type, undo, toast
+src/content/duplicates.js   warns when another copy of the extension runs on the page
 src/data/                 word frequencies + common misspellings (built by scripts/build-data.mjs)
+eval/                     quality benchmarks (npm run eval) and RESULTS.md
 src/shared/dictionary.js  seed personal dictionary
 src/editor.js, options.js, popup.js
 static/                   HTML, CSS, manifest, icons
@@ -70,18 +88,38 @@ npm install
 npm run build      # outputs to dist/, then hit reload on chrome://extensions
 ```
 
+## Measuring quality
+
+Every change to the engine should move a number. `npm run eval` runs the extension's own engine against:
+
+- **Spelling:** 2,400 real misspellings (Birkbeck corpus, codespell, SymSpell), with typos already in grammar-lee's lookup lists held out. The key figure is how often autocorrect is right when it fires.
+- **Grammar:** 93 typical mistakes in `eval/grammar-cases.txt`. Measures caught, fixed exactly, and false alarms on the corrected sentence.
+- **False alarms:** underlines per 1,000 words of professionally edited news text, where almost every underline is wrong.
+- **Your writing:** drop finished `.txt`/`.md` files into `eval/private/` (git-ignored) and run `npm run eval -- private`.
+
+```bash
+./eval/fetch-data.sh      # once: downloads the public test data
+npm run eval              # ~4 minutes; add --lt to include a running LanguageTool server
+```
+
+v1.1.0 cut false alarms by about 80% and raised autocorrect accuracy to 98.5–98.8% on real misspellings. Full numbers are in `eval/RESULTS.md`.
+
 ## How suggestions are ranked
 
 Spelling suggestions use a noisy-channel model, the same idea behind Grammarly and phone keyboards:
 
 ```
-score(candidate) = log P(candidate)            how common the word is (SUBTLEX word frequencies)
+score(candidate) = log P(candidate)            how common the word is in written English (82k-word list), spoken as fallback
                  - 3.2 x typo cost             how likely you were to make this typo (keyboard-aware edit distance)
                  + context check               candidate put back in the sentence and re-checked; new grammar errors lose
                  + bonuses                     Wikipedia common-misspellings list, fixes you accepted before
 ```
 
-Typo cost is a weighted Damerau-Levenshtein distance. Swapped letters (adn/and), neighbouring keys, doubled or missed double letters and a missing apostrophe are cheap. Random substitutions are expensive. That is why *adn* now ranks *and* above *ad*. Scores become probabilities. Alternatives far below the best one are hidden (precision over recall), and autocorrect only fires when the best answer clearly wins.
+Typo cost is a weighted Damerau-Levenshtein distance. Swapped letters (adn/and), neighbouring keys, doubled or missed double letters and a missing apostrophe in a contraction are cheap. Random substitutions are expensive. That is why *adn* ranks *and* above *ad*. Scores become probabilities. Alternatives far below the best one are hidden (precision over recall).
+
+Autocorrect only fires when the best answer clearly wins. If another common word is about as close a slip, nothing is changed and the options are shown instead (*ther* → the / there / their).
+
+Capitalised unknown words are treated as names and left alone unless they are one slip from a common word (*Minsiter*, *Wednsday*). Acronyms, camelCase brands and words with digits are never flagged.
 
 Every fix you accept is learned and ranked first next time (Settings → Learned corrections).
 
@@ -91,4 +129,6 @@ Textareas and inputs get an invisible mirror element with identical font metrics
 
 ## Data credits
 
-Word frequencies come from SUBTLEX-US via the `subtlex-word-frequencies` package (ISC). Common misspellings come from Wikipedia's list via the `misspellings` package (GPL-3.0). That licence only matters if you ever publish grammar-lee publicly.
+Written-English word frequencies come from the SymSpell frequency dictionary (MIT, Wolf Garbe; Google Books n-grams intersected with the SCOWL word list). Spoken frequencies come from SUBTLEX-US via the `subtlex-word-frequencies` package (ISC). Common misspellings come from Wikipedia's list via the `misspellings` package (GPL-3.0); because this repo is public and ships that list, the GPL applies to grammar-lee as a whole.
+
+Evaluation data is downloaded at test time and not redistributed: Birkbeck spelling error corpus sample (via the `pattern` project), codespell's dictionary (GPL-2.0), SymSpell's noisy query set (MIT), and the NLTK ABC and Reuters corpora.

@@ -61,6 +61,10 @@
 .all[disabled] { opacity: .4; cursor: default; }
 .empty { padding: 18px 14px; color: #60646c; }
 
+.dupwarn { position: fixed; right: 16px; bottom: 16px; width: 340px; pointer-events: auto; display: flex; gap: 10px; align-items: flex-start;
+  padding: 12px 12px 12px 14px; font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif; color: #1c2024;
+  background: #fff8e6; border: 1px solid #f3d27a; border-radius: 10px; box-shadow: 0 10px 30px rgba(15,23,42,.16); z-index: 2147483647; }
+.dupwarn .dwb { flex: none; border: 0; border-radius: 6px; padding: 5px 10px; background: #1c2024; color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
 .toast { position: fixed; pointer-events: auto; display: flex; align-items: center; gap: 10px; padding: 7px 8px 7px 12px;
   font: 13px/1.3 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif; color: #fff; background: #1c2024;
   border-radius: 9px; box-shadow: 0 8px 24px rgba(0,0,0,.25); z-index: 2147483647; animation: pop .14s ease-out; }
@@ -76,6 +80,7 @@
     if (root) return root;
     const host = document.createElement("grammar-lee-ui");
     host.setAttribute("data-grammar-lee", "off");
+    host.dataset.glId = chrome.runtime.id;
     const shadow = host.attachShadow({ mode: "open" });
     try {
       const sheet = new CSSStyleSheet();
@@ -1074,6 +1079,39 @@
     panel = box;
   }
 
+  // src/content/duplicates.js
+  var reported = false;
+  function findDuplicate() {
+    if (document.querySelector("proofline-ui")) return "Proofline (the old version)";
+    const mine = chrome.runtime.id;
+    const others = [...document.querySelectorAll("grammar-lee-ui")].filter((n) => n.dataset.glId !== mine);
+    return others.length ? "an older grammar-lee" : null;
+  }
+  function watchForDuplicates(send2) {
+    const check = async () => {
+      if (reported) return;
+      const kind = findDuplicate();
+      if (!kind) return;
+      reported = true;
+      const res = await send2({ type: "duplicate", kind, host: location.hostname });
+      if (res?.warn) showWarning(kind);
+    };
+    document.addEventListener("focusin", () => setTimeout(check, 1500), true);
+    setTimeout(check, 3e3);
+  }
+  function showWarning(kind) {
+    const { shadow } = ui();
+    const box = el("div", "dupwarn");
+    const text = el("div", "dwt");
+    text.append(el("b", null, "Two spell-checkers are running. "));
+    text.append(document.createTextNode(`${kind[0].toUpperCase()}${kind.slice(1)} is also loaded, so you may see its suggestions instead of these. Remove it at chrome://extensions.`));
+    const ok = el("button", "dwb", "Got it");
+    ok.addEventListener("click", () => box.remove());
+    box.append(text, ok);
+    shadow.append(box);
+    setTimeout(() => box.remove(), 2e4);
+  }
+
   // src/content/index.js
   var attached = /* @__PURE__ */ new WeakMap();
   var SKIP_INPUT_HINT = /(user|login|email|pass|otp|code|token|card|cvv|cvc|iban|sort|zip|post|phone|tel|url|search|captcha|address|city|amount|price)/i;
@@ -1130,6 +1168,7 @@
     await loadSettings();
     if (!state.settings) return;
     document.addEventListener("focusin", (e) => attach(e.composedPath()[0]), true);
+    if (window === window.top) watchForDuplicates(send);
     if (document.activeElement) attach(document.activeElement);
     chrome.storage.onChanged.addListener(async (changes) => {
       if (!changes.settings) return;

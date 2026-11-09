@@ -29,6 +29,16 @@ async function main() {
     else sites.add(host);
     updateSettings({ disabledSites: [...sites] });
   };
+  $('ver').textContent = `grammar-lee ${chrome.runtime.getManifest().version_name || chrome.runtime.getManifest().version}`;
+  const { duplicate } = await chrome.storage.local.get('duplicate');
+  if (duplicate && Date.now() - duplicate.at < 7 * 24 * 3600 * 1000) {
+    $('dupKind').textContent = duplicate.kind[0].toUpperCase() + duplicate.kind.slice(1);
+    $('dup').classList.add('show');
+    $('dupOk').onclick = async () => {
+      await chrome.storage.local.remove('duplicate');
+      $('dup').classList.remove('show');
+    };
+  }
   $('editor').onclick = () => chrome.tabs.create({ url: chrome.runtime.getURL('editor.html') });
   $('settings').onclick = () => chrome.runtime.openOptionsPage();
 

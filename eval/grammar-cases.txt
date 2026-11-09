@@ -1,0 +1,128 @@
+# Targeted grammar cases: the kind of mistakes made when typing emails, messages and applications fast.
+# Format: wrong sentence || corrected sentence.  "## name" starts a category.
+# Scoring: caught = an underline overlaps the part that changed; fixed = applying the top suggestions
+# gives exactly the corrected sentence; false alarm = any underline on the corrected sentence.
+# Corrected sentences are British English with Oxford commas.
+
+## its / it's
+Its been a long week for the team. || It's been a long week for the team.
+I think its worth applying early. || I think it's worth applying early.
+The company changed it's pricing last year. || The company changed its pricing last year.
+Every society has it's own budget. || Every society has its own budget.
+Maybe its fine as it is. || Maybe it's fine as it is.
+
+## your / you're
+Your going to love the new dashboard. || You're going to love the new dashboard.
+Let me know if your free on Friday. || Let me know if you're free on Friday.
+Thanks for you're help with the application. || Thanks for your help with the application.
+Thanks for you time. || Thanks for your time.
+
+## their / there / they're
+Their going to announce the results tomorrow. || They're going to announce the results tomorrow.
+I left my laptop over their. || I left my laptop over there.
+The founders presented there roadmap to investors. || The founders presented their roadmap to investors.
+Their is a problem with the server. || There is a problem with the server.
+
+## then / than
+The model is faster then the baseline. || The model is faster than the baseline.
+We had more applicants this year then last year. || We had more applicants this year than last year.
+I would rather call then email. || I would rather call than email.
+
+## could of / should of / would of
+I could of finished it yesterday. || I could have finished it yesterday.
+We should of asked them earlier. || We should have asked them earlier.
+It would of been better to wait. || It would have been better to wait.
+
+## a / an
+It was an useful exercise. || It was a useful exercise.
+She gave a honest answer. || She gave an honest answer.
+We need a update on the budget. || We need an update on the budget.
+This is an unique opportunity. || This is a unique opportunity.
+It took a hour to load. || It took an hour to load.
+
+## repeated words
+I wanted to follow up on the the proposal. || I wanted to follow up on the proposal.
+Please send it to to me by Friday. || Please send it to me by Friday.
+We will will review it next week. || We will review it next week.
+
+## subject-verb agreement
+The results shows a clear trend. || The results show a clear trend.
+He don't know about the meeting. || He doesn't know about the meeting.
+She have already submitted the form. || She has already submitted the form.
+There is three options on the table. || There are three options on the table.
+Each of the models are trained separately. || Each of the models is trained separately.
+My flatmate and I is going home. || My flatmate and I are going home.
+He go to the library every day. || He goes to the library every day.
+One of my friend is coming. || One of my friends is coming.
+
+## pronouns
+Me and Emma reviewed the numbers. || Emma and I reviewed the numbers.
+Between you and I, the deadline is tight. || Between you and me, the deadline is tight.
+Him and his team built the prototype. || He and his team built the prototype.
+
+## verb forms
+I have went there before. || I have gone there before.
+She should have came earlier. || She should have come earlier.
+We was told to wait. || We were told to wait.
+They have wrote three reports. || They have written three reports.
+The team was suppose to finish today. || The team was supposed to finish today.
+I use to work there. || I used to work there.
+We payed the deposit. || We paid the deposit.
+I look forward to hear from you. || I look forward to hearing from you.
+I am interesting in this role. || I am interested in this role.
+
+## confused words
+The new policy will effect every student. || The new policy will affect every student.
+The change had a big affect on sales. || The change had a big effect on sales.
+I don't want to loose the data. || I don't want to lose the data.
+Who's laptop is this? || Whose laptop is this?
+Please except my apologies. || Please accept my apologies.
+Can you advice me on this? || Can you advise me on this?
+Thanks for the advise. || Thanks for the advice.
+We need to practice more before the final. || We need to practise more before the final.
+The principle investigator approved it. || The principal investigator approved it.
+The colours compliment each other. || The colours complement each other.
+Lets meet at noon. || Let's meet at noon.
+I am going to the library to. || I am going to the library too.
+It is to late to change it. || It is too late to change it.
+Were going to the station now. || We're going to the station now.
+I don't know were it is. || I don't know where it is.
+Please turn of the lights. || Please turn off the lights.
+We past the checkpoint an hour ago. || We passed the checkpoint an hour ago.
+I use it everyday. || I use it every day.
+This maybe the best option. || This may be the best option.
+Irregardless of the result, we will publish. || Regardless of the result, we will publish.
+I can here the music from my room. || I can hear the music from my room.
+We have alot to do. || We have a lot to do.
+Thank you in advanced. || Thank you in advance.
+For all intensive purposes, it is finished. || For all intents and purposes, it is finished.
+I don't know weather it will work. || I don't know whether it will work.
+I'm going to take a brake. || I'm going to take a break.
+He was quiet sure about it. || He was quite sure about it.
+
+## real-word typos
+I will send it form my laptop. || I will send it from my laptop.
+We need to by more paper. || We need to buy more paper.
+I want to no more about the role. || I want to know more about the role.
+The meeting is at for o'clock. || The meeting is at four o'clock.
+
+## typos
+Salt adn pepper are on the table. || Salt and pepper are on the table.
+I recieved teh email this morning. || I received the email this morning.
+
+## capitalisation
+Yesterday i met the team. || Yesterday I met the team.
+the meeting starts at noon. || The meeting starts at noon.
+See you on monday. || See you on Monday.
+I visited london last week. || I visited London last week.
+We met in january. || We met in January.
+
+## punctuation and spacing
+Thanks , see you soon. || Thanks, see you soon.
+It works.However, it is slow. || It works. However, it is slow.
+Is it ready?? || Is it ready?
+The report is due on Friday.. || The report is due on Friday.
+Hello,how are you? || Hello, how are you?
+The companys revenue grew. || The company's revenue grew.
+We need apples, pears and plums. || We need apples, pears, and plums.
+I dont think so. || I don't think so.

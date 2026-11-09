@@ -11,6 +11,7 @@ export const DEFAULTS = {
   disabledRules: [], // Harper or LanguageTool rule ids switched off entirely
   languageTool: {
     enabled: false,
+    auto: true, // switch on by itself when a server answers on localhost; false once you set it yourself
     url: 'http://localhost:8081',
     picky: false,
   },

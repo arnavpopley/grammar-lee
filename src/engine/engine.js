@@ -2,7 +2,22 @@
 import { LocalLinter, Dialect, createBinaryModuleFromUrl } from 'harper.js';
 import { harperCategory, harperLabel } from './categories.js';
 import { ltCheck } from './languagetool.js';
-import { SpellRanker, autocorrectable, isKnownMisspelling } from './spell.js';
+import { SpellRanker, autocorrectable, isKnownMisspelling, isWrittenWord, regionalTwins, freqOf, slipOfCommonWord } from './spell.js';
+
+// Harper rules that mostly produce false alarms on well-edited British text (measured with `npm run eval`):
+//   CompoundNouns             "front line" -> "frontline", "north Western" -> "northWestern"
+//   DisjointPrefixes          "non-recurring" -> "nonrecurring" (British keeps the hyphen)
+//   QuantifierNumeralConflict flags the normal idiom "some 30 people"
+//   RoadMap                   "roadmap" -> "road map" (roadmap is standard in tech and business writing)
+export const DEFAULT_OFF_RULES = ['CompoundNouns', 'DisjointPrefixes', 'QuantifierNumeralConflict', 'RoadMap'];
+
+// Run-together slips worth flagging. Harper's SplitWords rule also fires on real compounds it doesn't know
+// ("wellbeing", "underreported", "biofuels"), so only these are kept.
+const RUN_TOGETHER = new Set([
+  'alot', 'atleast', 'atleat', 'eachother', 'aswell', 'aswel', 'infront', 'incase', 'everytime', 'thankyou',
+  'alittle', 'inspite', 'infact', 'ofcourse', 'eventhough', 'inorder', 'atall', 'aslong', 'abit', 'nomatter', 'ontop',
+]);
+
 
 export function ignoreKey(issue) {
   return `${issue.ruleId}::${issue.problem.toLowerCase()}`;
@@ -14,7 +29,7 @@ export class Engine {
     this.linter = null;
     this.dialect = null;
     this.wordsKey = '';
-    this.rulesKey = '';
+    this.rulesKey = null;
     this.ready = null;
     this.cache = new Map(); // text+settings -> issues (small LRU)
     this.wordInfoCache = new Map();
@@ -72,14 +87,20 @@ export class Engine {
         Object.assign(i, { isSpelling: true, label: 'Spelling', category: 'correctness', message: `“${i.problem}” looks misspelt.`, suggestions: [] });
       }
       if (!i.isSpelling) continue;
+      if (i.suggestions.some((x) => x !== i.problem && x.toLowerCase() === i.problem.toLowerCase())) {
+        Object.assign(i, { label: 'Capitalisation', isSpelling: false });
+        continue;
+      }
       const { sentence, offset } = sentenceAround(text, i.start, i.end);
-      const before = text.slice(offset, i.start).trimEnd();
-      const properNoun = /^[A-Z]/.test(i.problem) && before.length > 0 && !/[.!?:]$/.test(before);
+      const properNoun = /^[A-Z]/.test(i.problem) && !atSentenceStart(text, i.start);
       const ranked = await this.ranker.rank(i.problem, { harper: i.suggestions, sentence, start: i.start - offset, learned, properNoun });
       if (ranked.length) {
         i.suggestions = ranked.map((r) => r.word);
         i.confidence = ranked[0].p;
       }
+      // A capitalised unknown word at the start of a sentence is usually a name ("Rosser said..."), unless it is
+      // a very close slip of a common word ("Becuase", "Teh").
+      if (/^[A-Z]/.test(i.problem) && !isKnownMisspelling(i.problem)) i.drop = !capitalisedTypo(i.problem, ranked[0], atSentenceStart(text, i.start));
     }
     return issues;
   }
@@ -91,12 +112,19 @@ export class Engine {
     if ((settings.noAutocorrect || []).includes(lower)) return null;
     const info = await this.wordInfo(word);
     if (info.valid) return null;
-    const before = sentence.slice(0, start).trimEnd();
-    const midSentenceCapital = /[A-Z]/.test(word[0]) && before.length > 0 && !/[.!?:]$/.test(before);
+    // Real words Harper doesn't know (or the other dialect's spelling) are only ever underlined, never changed.
+    if (isWrittenWord(word) && !(settings.learned || {})[lower]) return null;
+    const midSentenceCapital = /[A-Z]/.test(word[0]) && !atSentenceStart(sentence, start);
     const ranked = await this.ranker.rank(word, {
       harper: info.suggestions, sentence, start, learned: settings.learned || {}, properNoun: midSentenceCapital,
     });
-    const fix = autocorrectable(word, ranked, { midSentenceCapital });
+    let fix = autocorrectable(word, ranked, { midSentenceCapital });
+    // Capitalised words are often names: only change them when it is clearly a slip of a common word.
+    if (fix && /^[A-Z]/.test(word)) {
+      const b = ranked[0];
+      const trusted = b.sources.includes('learned') || b.sources.includes('common');
+      if (!trusted && !(b.cost <= 0.5 && freqOf(b.word) >= 10000)) fix = null;
+    }
     return fix ? { replacement: fix, confidence: ranked[0].p } : null;
   }
 
@@ -114,6 +142,7 @@ export class Engine {
       this.dialect = settings.dialect;
       this.cache.clear();
       this.wordInfoCache.clear();
+      this.rulesKey = null; // Harper rebuilds its linter on dialect change; rule switches must be reapplied
     }
 
     const wordsKey = settings.words.join('\n');
@@ -124,12 +153,13 @@ export class Engine {
       this.words = new Set(settings.words.map((w) => w.toLowerCase()));
       this.cache.clear();
       this.wordInfoCache.clear();
+      this.rulesKey = null;
     }
 
     const rulesKey = settings.disabledRules.join(',');
     if (rulesKey !== this.rulesKey) {
       const cfg = await this.linter.getDefaultLintConfig();
-      for (const r of settings.disabledRules) if (r in cfg) cfg[r] = false;
+      for (const r of [...DEFAULT_OFF_RULES, ...settings.disabledRules]) if (r in cfg) cfg[r] = false;
       await this.linter.setLintConfig(cfg);
       this.rulesKey = rulesKey;
       this.cache.clear();
@@ -170,7 +200,7 @@ export class Engine {
               return r;
             }),
           ).slice(0, 5),
-          isSpelling: kind === 'Spelling' || kind === 'Typo',
+          isSpelling: ruleId === 'SpellCheck', // unknown words only; targeted rules like ToLoseTooLoose stay grammar
         });
       }
     }
@@ -186,13 +216,72 @@ export class Engine {
         this.harperCheck(text),
         settings.languageTool.enabled ? ltCheck(text, settings) : Promise.resolve([]),
       ]);
-      issues = merge(h, lt);
+      issues = merge(precise([...h, ...firstWordCapital(text, h)], text), precise(lt, text));
       await this.rerankSpelling(issues, text, settings);
+      issues = issues.filter((i) => !i.drop);
       this.cache.set(key, issues);
       if (this.cache.size > 60) this.cache.delete(this.cache.keys().next().value);
     }
     return filter(issues, settings);
   }
+}
+
+// Should a capitalised unknown word be flagged, given its best suggestion? Names far outnumber typos here.
+function capitalisedTypo(word, best, sentenceStart) {
+  if (!best) return false;
+  if (best.sources.includes('learned')) return true;
+  if (freqOf(best.word) < 10000) return false; // only slips of common words
+  if (sentenceStart) return best.cost <= (word.length <= 4 ? 0.5 : 0.8); // short ones are mostly names: Ord, Bas, Meer
+  return best.cost <= 0.5 || (best.cost <= 1.0 && word.length >= 7 && freqOf(best.word) >= 20000);
+}
+
+// Is position `start` the first word of a sentence (ignoring opening quotes and brackets)?
+export function atSentenceStart(text, start) {
+  const before = text.slice(0, start).replace(/["'“‘(\[]+$/, '').trimEnd();
+  return before.length === 0 || /[.!?:\n]$/.test(before) || /\n\s*$/.test(text.slice(0, start));
+}
+
+// Harper never checks the very first word of a text box; Grammarly does ("the meeting starts at noon.").
+// Only for sentence-like text (3+ words), so search boxes and one-word replies stay quiet.
+export function firstWordCapital(text, existing) {
+  const m = text.match(/^(\s*)([a-z][a-z']*)\b/);
+  if (!m || (text.match(/[A-Za-z']+/g) || []).length < 3) return [];
+  const word = m[2];
+  const start = m[1].length;
+  if (!isWrittenWord(word) || existing.some((i) => i.start <= start && i.end > start)) return [];
+  return [{
+    source: 'harper',
+    ruleId: 'FirstWordCapital',
+    start,
+    end: start + word.length,
+    problem: word,
+    category: 'correctness',
+    label: 'Capitalisation',
+    message: 'Start the sentence with a capital letter.',
+    suggestions: [word[0].toUpperCase() + word.slice(1)],
+    isSpelling: false,
+  }];
+}
+
+// Drop spelling flags that are almost always wrong in practice, before any expensive ranking.
+export function precise(issues, text) {
+  return issues.filter((i) => {
+    if (i.ruleId === 'SplitWords') return RUN_TOGETHER.has(i.problem.toLowerCase());
+    if (!i.isSpelling) return true;
+    const w = i.problem;
+    if (i.suggestions.some((s) => s !== w && s.toLowerCase() === w.toLowerCase())) return true; // monday -> Monday
+    if (/[^A-Za-z'’-]/.test(w)) return false; // digits, symbols: codes, handles, units
+    if (/^[A-Z]{2,}(['’]?s)?$/.test(w)) return false; // acronyms: IUCN, NASA's
+    if (/[a-z][A-Z]/.test(w)) return false; // camelCase brand names: OpenSRE, iPhone
+    if (isKnownMisspelling(w)) return true;
+    if (/^[a-z]/.test(w)) {
+      // A real word Harper's dictionary lacks: only keep it if Harper is pointing at the other dialect's spelling.
+      if (isWrittenWord(w) && !i.suggestions.some((s) => regionalTwins(s, w))) return false;
+      return true;
+    }
+    // Capitalised: usually a name, unless it is one slip away from a common word ("Prime Minsiter").
+    return atSentenceStart(text, i.start) || slipOfCommonWord(w);
+  });
 }
 
 // The sentence containing [start, end), used as context for ranking spelling suggestions.

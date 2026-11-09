@@ -1,11 +1,12 @@
 {
   "name": "grammar-lee",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Local Grammarly-style checker",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "node scripts/build-data.mjs && node build.mjs"
+    "build": "node scripts/build-data.mjs && node build.mjs",
+    "eval": "node eval/run.mjs"
   },
   "keywords": [],
   "author": "",

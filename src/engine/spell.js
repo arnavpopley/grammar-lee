@@ -45,6 +45,7 @@ const COST = {
   ins: 1.2,
   delDouble: 0.5, // ocur -> occur (missed a double letter)
   delApostrophe: 0.15, // dont -> don't
+  delPossessive: 0.6, // companys -> company's
   del: 1.0,
 };
 
@@ -61,7 +62,7 @@ export function errorCost(typoIn, candIn) {
   }
   for (let j = 1; j <= m; j++) {
     const ch = c[j - 1];
-    d[0][j] = d[0][j - 1] + (ch === "'" ? COST.delApostrophe : COST.del);
+    d[0][j] = d[0][j - 1] + (ch === "'" ? (c.slice(j) === 's' ? COST.delPossessive : COST.delApostrophe) : COST.del);
   }
   for (let i = 1; i <= n; i++) {
     for (let j = 1; j <= m; j++) {
@@ -77,7 +78,9 @@ export function errorCost(typoIn, candIn) {
       const ins = d[i - 1][j] + (extraDouble ? COST.insDouble : extraAdj ? COST.insAdjacent : COST.ins);
       // typo is missing char b
       const missDouble = (j > 1 && c[j - 2] === b) || (j < m && c[j] === b);
-      const del = d[i][j - 1] + (b === "'" ? COST.delApostrophe : missDouble ? COST.delDouble : COST.del);
+      // A missing apostrophe is cheap in contractions (dont -> don't) but not in possessives (classrooms -> classroom's).
+      const apos = b === "'" ? (c.slice(j) === 's' ? COST.delPossessive : COST.delApostrophe) : null;
+      const del = d[i][j - 1] + (apos ?? (missDouble ? COST.delDouble : COST.del));
       const subCost = adjacent(a, b) ? COST.subAdjacent : VOWELS.has(a) && VOWELS.has(b) ? COST.subVowel : COST.sub;
       let best = Math.min(ins, del, d[i - 1][j - 1] + subCost);
       if (i > 1 && j > 1 && a === c[j - 2] && t[i - 2] === b) best = Math.min(best, d[i - 2][j - 2] + COST.transpose);
@@ -101,14 +104,41 @@ const US_VARIANTS = [
   [/lled$/, 'led'],
   [/lling$/, 'ling'],
 ];
+const WRITTEN = FREQ.written; // per billion words of edited writing (only real words)
+const SPOKEN = FREQ.spoken; // per billion words of subtitles (has contractions, chat words, some typos)
+const has = (m, k) => Object.prototype.hasOwnProperty.call(m, k);
+function rawFreq(w) {
+  const a = has(WRITTEN, w) ? WRITTEN[w] : 0;
+  const b = has(SPOKEN, w) ? SPOKEN[w] * 0.5 : 0; // spoken counts are a weaker signal for writing
+  return Math.max(a, b);
+}
+
+// A word in the written list is a real, correctly spelt English word (any dialect).
+export function isWrittenWord(word) {
+  return has(WRITTEN, word.toLowerCase());
+}
+
 export function freqOf(word) {
   const w = word.toLowerCase();
-  const key = w.replace(/'/g, '');
-  let f = FREQ[w] || FREQ[key] || 0;
+  // Possessives: much rarer than the bare word, and never as common as the plural ("classroom's" vs "classrooms").
+  if (/'s$/.test(w)) return rawFreq(w) || rawFreq(w.slice(0, -2)) * 0.15;
+  const key = w.replace(/'/g, ''); // contractions are stored without the apostrophe (dont -> don't)
+  let f = rawFreq(w) || rawFreq(key);
   for (const [re, rep] of US_VARIANTS) {
-    if (re.test(key)) f = Math.max(f, FREQ[key.replace(re, rep)] || 0);
+    if (re.test(key)) f = Math.max(f, rawFreq(key.replace(re, rep)));
   }
   return f;
+}
+
+// colour/color, organise/organize, travelled/traveled: same word, different dialect.
+export function regionalTwins(a, b) {
+  const x = a.toLowerCase();
+  const y = b.toLowerCase();
+  if (x === y) return false;
+  for (const [re, rep] of US_VARIANTS) {
+    if (x.replace(re, rep) === y || y.replace(re, rep) === x) return true;
+  }
+  return false;
 }
 
 // ---------- candidate generation ----------
@@ -129,7 +159,22 @@ function edits1(w) {
   return out;
 }
 const known = (w) => freqOf(w) > 0;
-const knownFast = (w) => FREQ[w] !== undefined;
+const knownFast = (w) => has(WRITTEN, w) || has(SPOKEN, w);
+const COMMON = 1000; // per billion: roughly the 20,000 most frequent words
+
+// Is this (capitalised) word one cheap slip away from a common word? "Minsiter" -> minister (swapped letters),
+// "Tommorow" -> tomorrow. Names almost never are ("Rosser", "Xstrata"), so this separates typos from names.
+export function slipOfCommonWord(word) {
+  const lower = word.toLowerCase();
+  for (const e of edits1(lower)) {
+    const f = freqOf(e);
+    if (f < 10000) continue;
+    const c = errorCost(lower, e);
+    if (c <= 0.5) return true; // swapped or doubled letters
+    if (c <= 1.0 && lower.length >= 7 && f >= 20000 && e[0] === lower[0]) return true; // "Wednsday": one missed letter in a long common word
+  }
+  return false;
+}
 
 function matchCase(typo, cand) {
   if (cand === "I'm" || cand === "I've" || cand === 'I') return cand;
@@ -171,7 +216,7 @@ export class SpellRanker {
     harper.forEach((h, i) => add(h, 0.6 - i * 0.1, 'harper'));
     const e1 = [...edits1(lower)].filter(known);
     e1.forEach((w) => add(w, 0, 'edit1'));
-    const strongE1 = e1.some((w) => freqOf(w) >= 50);
+    const strongE1 = e1.some((w) => freqOf(w) >= COMMON);
     if (!strongE1 && lower.length >= 4 && lower.length <= 14) {
       for (const w1 of edits1(lower)) for (const w2 of edits1(w1)) if (knownFast(w2)) add(w2, -0.5, 'edit2');
     }
@@ -209,11 +254,17 @@ export class SpellRanker {
     // Confidence: softmax over scores.
     const top = valid[0]?.score ?? 0;
     const z = valid.reduce((acc, s) => acc + Math.exp(s.score - top), 0) || 1;
+    // Rivals: other common words that are about as close a slip as the best one ("ther" -> the / there / their).
+    // Frequency alone would always pick "the"; when there are rivals we show them and never autocorrect.
+    const best = valid[0];
+    const isRival = (s) => s !== best && s.cost <= best.cost + 0.35 && freqOf(s.word) >= COMMON;
+    const rivals = best ? valid.filter(isRival).length : 0;
     const out = valid
-      .map((s) => ({ word: matchCase(typo, s.word), p: Math.exp(s.score - top) / z, cost: s.cost, sources: [...s.sources] }))
-      // Precision over recall: hide alternatives that are far less likely than the best one.
-      .filter((s, i) => i === 0 || s.p >= 0.04)
+      .map((s) => ({ word: matchCase(typo, s.word), p: Math.exp(s.score - top) / z, cost: s.cost, sources: [...s.sources], rival: isRival(s) }))
+      // Precision over recall: hide alternatives that are far less likely than the best one, unless they are rivals.
+      .filter((s, i) => i === 0 || s.p >= 0.04 || s.rival)
       .slice(0, limit);
+    if (out[0]) out[0].rivals = rivals;
     this.cache.set(cacheKey, out);
     if (this.cache.size > 2000) this.cache.delete(this.cache.keys().next().value);
     return out;
@@ -232,6 +283,7 @@ export function autocorrectable(typo, ranked, { midSentenceCapital = false } = {
   if (lower.length < 3 && !SHORT_OK.has(lower)) return null;
   const trusted = best.sources.includes('learned') || best.sources.includes('common');
   if (trusted && best.p >= 0.6) return best.word;
+  if (best.rivals > 0) return null; // several plausible words: underline and let the user pick
   if (best.p >= 0.9 && best.cost <= 0.8 && lower.length >= 4) return best.word;
   if (best.p >= 0.97 && best.cost <= 1.2 && lower.length >= 7) return best.word; // one slip in a long word
   return null;

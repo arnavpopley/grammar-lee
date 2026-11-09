@@ -32,6 +32,19 @@ chrome.contextMenus.onClicked.addListener(async (info) => {
 // Warm the engine so the first check is instant.
 settingsPromise.then((s) => engine.configure(s)).catch(console.error);
 
+// If a LanguageTool server is running on this machine (./setup-languagetool.sh), use it without being asked.
+// Runs whenever the service worker starts, which Chrome does often.
+async function autoEnableLanguageTool() {
+  const s = await settingsPromise;
+  if (!s.languageTool.auto || s.languageTool.enabled) return;
+  const r = await ltPing(s.languageTool.url);
+  if (r.ok) {
+    await updateSettings({ languageTool: { enabled: true } });
+    settingsPromise = getSettings();
+  }
+}
+autoEnableLanguageTool().catch(() => {});
+
 async function handle(msg) {
   const settings = await settingsPromise;
   switch (msg.type) {
@@ -86,6 +99,14 @@ async function handle(msg) {
       await updateSettings({ noAutocorrect: [...settings.noAutocorrect, typo], learned });
       settingsPromise = getSettings();
       return { ok: true };
+    }
+    case 'duplicate': {
+      // Remember it for the popup; nag on the page at most twice a day.
+      const { duplicate } = await chrome.storage.local.get('duplicate');
+      const now = Date.now();
+      const warn = !duplicate?.warnedAt || now - duplicate.warnedAt > 12 * 3600 * 1000;
+      await chrome.storage.local.set({ duplicate: { kind: msg.kind, host: msg.host, at: now, warnedAt: warn ? now : duplicate.warnedAt } });
+      return { warn };
     }
     case 'ltPing':
       return ltPing(msg.url || settings.languageTool.url);

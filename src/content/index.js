@@ -1,5 +1,6 @@
 // Content script entry: finds editable fields as you focus them and attaches a checker.
-import { Field, fields, state, loadSettings, hideCard } from './field.js';
+import { Field, fields, state, loadSettings, hideCard, send } from './field.js';
+import { watchForDuplicates } from './duplicates.js';
 
 const attached = new WeakMap();
 
@@ -65,6 +66,7 @@ async function init() {
   await loadSettings();
   if (!state.settings) return;
   document.addEventListener('focusin', (e) => attach(e.composedPath()[0]), true);
+  if (window === window.top) watchForDuplicates(send);
   if (document.activeElement) attach(document.activeElement);
 
   chrome.storage.onChanged.addListener(async (changes) => {

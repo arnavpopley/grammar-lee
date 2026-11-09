@@ -2,3 +2,7 @@ node_modules/
 scratch/
 *.zip
 .DS_Store
+eval/data/
+eval/private/
+eval/*.json
+scripts/data/

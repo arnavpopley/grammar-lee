@@ -63,7 +63,7 @@
 
   <section>
     <h2>LanguageTool (optional, local)</h2>
-    <div class="hint">Runs a LanguageTool server on your own machine for extra grammar rules on top of Harper. Install it with <code>./setup-languagetool.sh</code> from the grammar-lee folder. Only <code>localhost</code> addresses are accepted, so your text never goes to the cloud.</div>
+    <div class="hint">Runs a LanguageTool server on your own machine for extra grammar rules on top of Harper. Install it with <code>./setup-languagetool.sh</code> from the grammar-lee folder; grammar-lee switches it on by itself once it is running. Only <code>localhost</code> addresses are accepted, so your text never goes to the cloud.</div>
     <div class="row"><div class="label">Use LanguageTool</div><label class="switch"><input id="ltOn" type="checkbox" /><span></span></label></div>
     <div class="row">
       <div class="label">Server address</div>
@@ -111,6 +111,14 @@
     <h2>Sites turned off</h2>
     <div class="chips" id="sites"></div>
   </section>
+
+  <section>
+    <h2>Back up settings</h2>
+    <div class="hint">Your dictionary, learned corrections, ignored suggestions and switches, as one file. Removing the extension at chrome://extensions deletes them, so export first.</div>
+    <div class="inline" style="margin-top:10px"><button class="btn" id="export">Export</button><button class="btn" id="importBtn">Import</button><input type="file" id="importFile" accept="application/json,.json" hidden /><span class="saved" id="importMsg"></span></div>
+  </section>
+
+  <div class="hint" id="ver" style="text-align:center;margin-top:8px"></div>
 </main>
 <script src="options.js"></script>
 </body>

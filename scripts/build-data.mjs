@@ -1,14 +1,35 @@
 // Builds compact spelling data used by the ranker.
-//   freq.json         lowercase word -> SUBTLEX count (spoken-English frequency)
+//   freq.json         { written, spoken }: lowercase word -> occurrences per billion words
+//                     written = SymSpell list (Google Books n-grams ∩ SCOWL spell-checker lexicon), only real words
+//                     spoken  = SUBTLEX film subtitles, which also covers contractions and chat words
 //   misspellings.json typo -> correction (Wikipedia common misspellings + curated chat typos)
-import { readFileSync, writeFileSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync } from 'fs';
+import { execSync } from 'child_process';
+
+const SYMSPELL = 'scripts/data/symspell-frequency_dictionary_en_82_765.txt';
+if (!existsSync(SYMSPELL)) {
+  execSync('mkdir -p scripts/data');
+  execSync(`curl -fsSL -o ${SYMSPELL} https://raw.githubusercontent.com/wolfgarbe/SymSpell/master/SymSpell/frequency_dictionary_en_82_765.txt`);
+}
+function perBillion(map) {
+  const total = Object.values(map).reduce((a, b) => a + b, 0);
+  const out = {};
+  for (const [k, v] of Object.entries(map)) out[k] = Math.max(1, Math.round((v / total) * 1e9));
+  return out;
+}
+const sym = Object.create(null);
+for (const line of readFileSync(SYMSPELL, 'utf8').replace(/^\uFEFF/, '').split('\n')) {
+  const [w, c] = line.trim().split(/\s+/);
+  if (w && /^[a-z]+$/.test(w) && Number(c) > 0) sym[w] = Number(c);
+}
 const subtlex = JSON.parse(readFileSync('node_modules/subtlex-word-frequencies/index.json', 'utf8'));
-const freq = {};
+const sub = Object.create(null);
 for (const { word, count } of subtlex) {
   const k = word.toLowerCase();
   if (!/^[a-z][a-z'-]*$/.test(k)) continue;
-  freq[k] = (freq[k] || 0) + count;
+  sub[k] = (sub[k] || 0) + count;
 }
+const freq = { written: perBillion(sym), spoken: perBillion(sub) };
 const wiki = JSON.parse(readFileSync('node_modules/misspellings/dict/lc-dictionary.json', 'utf8'));
 const miss = {};
 for (const [typo, fix] of Object.entries(wiki)) {
@@ -36,4 +57,4 @@ const curated = {
 };
 writeFileSync('src/data/freq.json', JSON.stringify(freq));
 writeFileSync('src/data/misspellings.json', JSON.stringify({ wiki: miss, curated }));
-console.log('freq', Object.keys(freq).length, 'wiki', Object.keys(miss).length, 'curated', Object.keys(curated).length);
+console.log('written', Object.keys(freq.written).length, 'spoken', Object.keys(freq.spoken).length, 'wiki', Object.keys(miss).length, 'curated', Object.keys(curated).length);
