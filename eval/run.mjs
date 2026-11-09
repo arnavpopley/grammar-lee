@@ -11,6 +11,10 @@
 //   grammar   eval/grammar-cases.txt: caught / fixed / false alarm on the corrected sentence.
 //   clean     Professionally edited news text. Every underline here is (almost always) a false alarm.
 //   private   Your own finished writing in eval/private/ (.txt / .md). Never committed.
+//   speed     Engine start-up, checking a typical email and a long document, and autocorrect per word.
+//             (Not part of the default run.)
+//
+//   EVAL_SEED=1 npm run eval          a different random sample, to check numbers are not sample luck
 import { readFileSync, readdirSync, existsSync, writeFileSync, statSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
@@ -23,9 +27,10 @@ const DATA = join(HERE, 'data');
 const args = process.argv.slice(2);
 const flag = (f) => args.includes(f);
 const suites = args.filter((a) => !a.startsWith('--') && !a.endsWith('.json'));
-const want = (s) => !suites.length || suites.includes(s);
+const want = (s) => (!suites.length && s !== 'speed') || suites.includes(s);
 const jsonOut = args.includes('--json') ? args[args.indexOf('--json') + 1] : null;
 const LIMIT = Number(process.env.EVAL_LIMIT || 1500);
+const SEED = Number(process.env.EVAL_SEED || 0); // change to draw a different sample and check the numbers hold
 
 const engine = new Engine(pathToFileURL(join(HERE, '../node_modules/harper.js/dist/harper_wasm_slim_bg.wasm')).href);
 const settingsFor = (dialect, extraWords = []) => ({
@@ -38,7 +43,7 @@ const settingsFor = (dialect, extraWords = []) => ({
 // Deterministic sample so runs are comparable.
 function sample(arr, n, seed = 7) {
   const a = [...arr];
-  let s = seed;
+  let s = seed + SEED * 7919;
   const rnd = () => ((s = (s * 1664525 + 1013904223) % 4294967296) / 4294967296);
   for (let i = a.length - 1; i > 0; i--) {
     const j = Math.floor(rnd() * (i + 1));
@@ -60,7 +65,8 @@ function loadSpelling() {
       .split('\n')
       .map((l) => l.match(/"([^"]+)","([^"]+)"/))
       .filter(Boolean)
-      .map((m) => [m[2], m[1]]),
+      // one row can hold several misspellings of the same word: "accommodation","accomodation acommodation"
+      .flatMap((m) => m[2].trim().split(/\s+/).map((typo) => [typo, m[1]])),
   };
   const cs = readFileSync(join(DATA, 'codespell.txt'), 'utf8');
   sets.codespell = {
@@ -277,8 +283,47 @@ async function privateSuite() {
   results.private = await falseAlarms('private', paras, 'British', Infinity);
 }
 
+// ---------------------------------------------------------------- speed
+async function speedSuite() {
+  const { performance } = await import('perf_hooks');
+  const fresh = new Engine(pathToFileURL(join(HERE, '../node_modules/harper.js/dist/harper_wasm_slim_bg.wasm')).href);
+  const settings = settingsFor('British');
+  let t = performance.now();
+  await fresh.configure(settings);
+  const startup = performance.now() - t;
+  const email = 'Hi Vincent, I hope you are well. I wanted to follow up on the proposal we discussed last week. ' +
+    'Me and Emma have reviewed the numbers and they look reasonable, but there are a few issues with the forecast that ' +
+    'we should flag before Friday. Could you send me the latest version of the model so I can check the assumptions? ' +
+    'Thanks again for your help, Arnav';
+  const { paras } = readCorpus('abc');
+  const long = paras.slice(0, 60).join('\n\n');
+  const time = async (fn, reps) => {
+    const ts = [];
+    for (let r = 0; r < reps; r++) {
+      fresh.cache.clear();
+      const a = performance.now();
+      await fn(r);
+      ts.push(performance.now() - a);
+    }
+    ts.sort((x, y) => x - y);
+    return { median: ts[Math.floor(ts.length / 2)], p90: ts[Math.floor(ts.length * 0.9)] };
+  };
+  const e = await time((r) => fresh.check(`${email} ${r}`, settings), 15);
+  const l = await time((r) => fresh.check(`${long} ${r}`, settings), 5);
+  const typos = ['adn', 'teh', 'recieve', 'becuase', 'definately', 'wiht', 'tommorow', 'seperate', 'ther', 'graphicaly', 'Minsiter', 'jsut'];
+  fresh.ranker.cache.clear();
+  fresh.wordInfoCache.clear();
+  const ac = await time((r) => fresh.autocorrect(typos[r % typos.length], `We think ${typos[r % typos.length]}`, 9, settings), typos.length);
+  const lw = words(long);
+  console.log(`  engine start-up                 ${startup.toFixed(0)} ms`);
+  console.log(`  check a 75-word email           median ${e.median.toFixed(0)} ms, p90 ${e.p90.toFixed(0)} ms`);
+  console.log(`  check a ${lw}-word document     median ${l.median.toFixed(0)} ms, p90 ${l.p90.toFixed(0)} ms`);
+  console.log(`  autocorrect one word (cold)     median ${ac.median.toFixed(0)} ms, p90 ${ac.p90.toFixed(0)} ms`);
+  results.speed = { startup, email: e, long: { ...l, words: lw }, autocorrect: ac };
+}
+
 const t0 = Date.now();
-console.log(`grammar-lee eval  (LanguageTool ${flag('--lt') ? 'ON' : 'off'})`);
+console.log(`grammar-lee eval  (LanguageTool ${flag('--lt') ? 'ON' : 'off'}${SEED ? `, sample seed ${SEED}` : ''})`);
 if (want('spelling')) {
   console.log('\nSpelling (public misspelling lists, held-out pairs only)');
   await spellingSuite();
@@ -290,6 +335,10 @@ if (want('grammar')) {
 if (want('clean')) {
   console.log('\nFalse alarms on professionally edited text');
   await cleanSuite();
+}
+if (want('speed')) {
+  console.log('\nSpeed (this machine; Chrome is usually similar or faster)');
+  await speedSuite();
 }
 if (want('private')) {
   console.log('\nFalse alarms on your own writing (eval/private)');

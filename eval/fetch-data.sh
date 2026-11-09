@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Downloads the public test data used by `npm run eval` into eval/data (not committed).
 set -euo pipefail
-cd "$(dirname "$0")/data"
+mkdir -p "$(dirname "$0")/data" && cd "$(dirname "$0")/data"
 get() { [[ -s "$2" ]] || curl -fsSL "$1" -o "$2"; }
 RAW=https://raw.githubusercontent.com
 # Spelling: real misspellings with corrections
